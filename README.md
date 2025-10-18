@@ -18,10 +18,10 @@ Department of Mechanical Engineering, IIT Ropar
 ---
 
 ## 🧠 Project Overview  
-This project focuses on designing a **cost-effective limb-lengthening implant** inspired by advanced systems like **Fitbone** and **Precice Nail**.  
-It integrates a **DC motor**, **three-stage planetary gear system**, and **lead screw** to achieve **precise linear motion** for bone distraction during **distraction osteogenesis**.
+This project focuses on developing a **cost-effective, motor-driven limb-lengthening implant**, inspired by existing commercial systems like **Fitbone** and **Precice Nail**.  
+It integrates a **DC motor**, a **three-stage planetary gear system**, and a **lead screw** to achieve **precise linear motion** for controlled bone distraction in **distraction osteogenesis**.
 
-> 🧩 Goal: Develop an affordable, motor-driven internal bone implant with precise, smooth, and non-invasive control.
+> 🧩 Goal: Create an affordable implant with smooth, accurate, and non-invasive motion control suitable for orthopaedic use in developing nations.
 
 ---
 
@@ -29,65 +29,64 @@ It integrates a **DC motor**, **three-stage planetary gear system**, and **lead 
 
 | Component | Function |
 |------------|-----------|
-| **DC Motor (6V, 260 RPM)** | Provides high-speed rotary input |
-| **Planetary Gear System (3-stage, 166.375:1)** | Amplifies torque and reduces speed |
-| **Lead Screw (Pitch = 1.25 mm/rev)** | Converts rotation into precise linear motion |
-| **Hall-Effect Encoder** | Provides feedback for position and direction |
-| **Arduino Uno** | Runs PID control algorithm |
-| **L298N Motor Driver** | Drives DC motor using PWM control |
+| **DC Motor (6V, 260 RPM)** | Provides rotary motion |
+| **Planetary Gear System (3-stage, 166.375:1)** | Increases torque, reduces speed |
+| **Lead Screw (Pitch = 1.25 mm/rev)** | Converts rotary to linear motion |
+| **Hall-Effect Encoder** | Provides feedback for position & direction |
+| **Arduino Uno** | Implements PID control algorithm |
+| **L298N Motor Driver** | Drives the DC motor (PWM + Direction Control) |
 
 ---
 
 ## 🔩 Working Mechanism  
 
-1. **DC Motor** provides rotary motion.  
-2. **Planetary gear system** reduces RPM and increases torque.  
-3. **Lead screw** converts rotation into linear displacement.  
-4. **Hall-effect encoder** provides feedback to Arduino for closed-loop control.  
-5. **PID algorithm** continuously adjusts motor speed and direction to reach the target position.  
+1. The **DC motor** rotates at 260 RPM.  
+2. The **planetary gear system** reduces speed and amplifies torque (166.375:1 ratio).  
+3. The **lead screw** converts the output rotation to linear displacement of 1.25 mm/rev.  
+4. The **encoder** sends position feedback to Arduino.  
+5. The **PID controller** adjusts PWM output to achieve smooth, controlled motion.  
 
 **Result:**  
-Smooth, controlled bone distraction at a rate of **~0.3 mm every 2 minutes**, aligning with biological growth requirements.
+> Controlled bone distraction at ~0.3 mm per 2 minutes — aligning with clinical standards for safe bone regeneration.
 
 ---
 
-## 🧭 PID Control System  
+## 🧭 Control System — PID Implementation  
 
-The control loop ensures precision and stability in motor actuation.
-
+### ⚡ Control Law
 \[
 V_{PWM} = K_p e(t) + K_i \int e(t) dt + K_d \frac{de(t)}{dt}
 \]
 
 Where:  
 - \( e(t) = x_{desired} - x_{measured} \)  
-- \( K_p, K_i, K_d \) are proportional, integral, and derivative gains  
+- \( K_p, K_i, K_d \) = proportional, integral, derivative constants  
 
-### **Hardware Used**
-- Arduino Uno (Controller)  
-- L298N Motor Driver (H-Bridge)  
-- DC Motor with Hall-effect Encoder  
+### 🧩 System Components
+- **Controller:** Arduino Uno  
+- **Driver:** L298N H-Bridge Motor Driver  
+- **Feedback:** Hall-effect Encoder (40,500 pulses/rev)  
 
-### **Software Features**
-- Encoder provides 40,500 pulses per revolution  
-- PID tuning for stability (D term = 0 to reduce steady-state noise)  
-- Real-time feedback ensures accurate positioning and minimal overshoot  
+**Why PID?**  
+- **P** ensures fast correction  
+- **I** removes steady-state error  
+- **D** minimizes overshoot and noise  
+
+For steady-state operation, **Kd = 0** (PI control) was found optimal.
 
 ---
 
-## 🧮 Calculations  
+## 🧮 Design Calculations  
 
-| Parameter | Symbol | Value |
-|------------|----------|--------|
-| **Gear Ratio** | \( G \) | \( (5.5)^3 = 166.375:1 \) |
-| **Lead Screw Pitch** | \( P \) | 1.25 mm/rev |
-| **Desired Linear Speed** | \( v \) | 0.3 mm / 2 min |
-| **Required Motor RPM** | \( \omega_m \) | 50–80 RPM (achieved via PID control) |
+| Parameter | Symbol | Formula / Description | Value |
+|------------|----------|----------------------|--------|
+| **Gear Ratio** | G | \( (5.5)^3 \) | 166.375:1 |
+| **Lead Screw Pitch** | P | mm/rev | 1.25 |
+| **Linear Velocity** | v | \( v = \text{RPM} \times P \) | — |
+| **Target Speed** | — | 0.3 mm per 2 minutes | — |
+| **Required Motor RPM** | ω_m | Calculated | 50–80 RPM |
 
-**Linear Speed Equation:**  
-\[
-v = \text{RPM} \times P
-\]
+Thus, PID tuning ensures motor RPM between **50–80** for desired linear displacement.
 
 ---
 
@@ -97,29 +96,37 @@ v = \text{RPM} \times P
 #include <PID_v1.h>
 
 double setpoint, input, output;
-double Kp = 1.5, Ki = 0.5, Kd = 0.0;  // D term minimized for steady state
+double Kp = 1.5, Ki = 0.5, Kd = 0.0;  // D minimized to reduce steady-state noise
 PID myPID(&input, &output, &setpoint, Kp, Ki, Kd, DIRECT);
 
-const int motorPWM = 9;
-const int in1 = 7;
-const int in2 = 8;
+const int motorPWM = 9;  // PWM pin to L298N ENA
+const int in1 = 7;       // Direction control 1
+const int in2 = 8;       // Direction control 2
 volatile long encoderCount = 0;
 
 void setup() {
   pinMode(motorPWM, OUTPUT);
   pinMode(in1, OUTPUT);
   pinMode(in2, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(2), readEncoder, RISING);
+  attachInterrupt(digitalPinToInterrupt(2), readEncoder, RISING); // Encoder signal
   Serial.begin(9600);
   myPID.SetMode(AUTOMATIC);
+  setpoint = 40500;  // target encoder counts for one revolution
 }
 
 void loop() {
-  input = encoderCount;              // current position
-  myPID.Compute();                   // compute PID output
-  analogWrite(motorPWM, output);     // control motor speed
+  input = encoderCount;     // Feedback from encoder
+  myPID.Compute();          // Compute PID output
+  controlMotor(output);     // Drive motor
+  Serial.println(encoderCount);
 }
 
 void readEncoder() {
-  encoderCount++;  // Increment count for each pulse
+  encoderCount++;           // Increment pulse count
+}
+
+void controlMotor(double pwmVal) {
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
+  analogWrite(motorPWM, constrain(pwmVal, 0, 255));
 }
